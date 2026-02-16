@@ -19,6 +19,15 @@
       <span class="strava-dot"></span> Checking...
     </div>
 
+    <div id="heatmap-section" class="heatmap-section" style="display: none;">
+      <div class="heatmap-header">
+        <label>Activity Heatmap</label>
+        <button id="btn-heatmap-toggle" class="btn btn-heatmap-toggle" onclick="toggleHeatmap()">Show Heatmap</button>
+      </div>
+      <div id="heatmap-filters" class="heatmap-filters" style="display: none;"></div>
+      <div id="heatmap-status" class="heatmap-status"></div>
+    </div>
+
     <div class="location-section">
       <label>Start Location</label>
       <div class="search-row">
@@ -44,6 +53,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

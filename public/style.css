@@ -338,3 +338,84 @@ body {
   margin-bottom: 0.75rem;
   font-style: italic;
 }
+
+/* --- Heatmap Section --- */
+.heatmap-section {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.heatmap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.heatmap-header label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+
+.btn-heatmap-toggle {
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #2a2a4a;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.btn-heatmap-toggle:hover {
+  border-color: #fc4c02;
+}
+
+.btn-heatmap-toggle.active {
+  background: rgba(252, 76, 2, 0.15);
+  border-color: #fc4c02;
+  color: #fc4c02;
+}
+
+.btn-heatmap-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.heatmap-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.filter-chip {
+  padding: 0.3rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid #2a2a4a;
+  background: #1a1a2e;
+  color: #888;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-chip:hover {
+  border-color: #555;
+  color: #e0e0e0;
+}
+
+.filter-chip.active {
+  background: rgba(252, 76, 2, 0.15);
+  border-color: #fc4c02;
+  color: #fc4c02;
+}
+
+.heatmap-status {
+  font-size: 0.7rem;
+  color: #666;
+  margin-top: 0.4rem;
+}

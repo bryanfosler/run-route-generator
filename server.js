@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const stravaAuth = require('./routes/strava-auth');
+const stravaActivities = require('./routes/strava-activities');
 const generateRoutes = require('./routes/generate');
 
 const app = express();
@@ -11,6 +12,9 @@ app.use(express.static('public'));
 
 // Strava OAuth routes
 app.use('/auth/strava', stravaAuth);
+
+// Strava activity data
+app.use('/api/strava', stravaActivities);
 
 // Route generation
 app.use('/api/routes', generateRoutes);

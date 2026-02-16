@@ -11,6 +11,12 @@ let usedBearings = [];    // Track bearings already shown (for Generate More)
 
 const ROUTE_COLORS = ['#fc4c02', '#3498db', '#2ecc71', '#e74c3c', '#9b59b6', '#f39c12'];
 
+// --- Heatmap State ---
+let heatLayer = null;
+let heatmapVisible = false;
+let cachedActivities = null;
+let activeTypeFilters = new Set(); // Which activity types are selected
+
 // --- Map Setup ---
 function initMap() {
   map = L.map('map', { zoomControl: false }).setView([43.0731, -89.4012], 13); // Madison, WI default
@@ -438,6 +444,133 @@ function showError(msg) {
   container.appendChild(div);
 }
 
+// --- Heatmap ---
+function decodePolylineClient(encoded) {
+  const points = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
+}
+
+async function toggleHeatmap() {
+  const btn = document.getElementById('btn-heatmap-toggle');
+  const filters = document.getElementById('heatmap-filters');
+  const status = document.getElementById('heatmap-status');
+
+  if (heatmapVisible) {
+    // Hide
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    heatmapVisible = false;
+    btn.textContent = 'Show Heatmap';
+    btn.classList.remove('active');
+    filters.style.display = 'none';
+    status.textContent = '';
+    return;
+  }
+
+  // Show — fetch if needed
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  status.textContent = 'Fetching activities...';
+
+  if (!cachedActivities) {
+    try {
+      const res = await fetch('/api/strava/activities');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch');
+      cachedActivities = data.activities;
+    } catch (err) {
+      status.textContent = 'Failed to load activities: ' + err.message;
+      btn.disabled = false;
+      btn.textContent = 'Show Heatmap';
+      return;
+    }
+  }
+
+  heatmapVisible = true;
+  btn.textContent = 'Hide Heatmap';
+  btn.classList.add('active');
+  btn.disabled = false;
+
+  // Build filter chips from activity types
+  buildFilterChips();
+  filters.style.display = 'flex';
+
+  // Render heatmap
+  renderHeatmap();
+}
+
+function buildFilterChips() {
+  const container = document.getElementById('heatmap-filters');
+  const types = [...new Set(cachedActivities.map(a => a.type))].sort();
+
+  // If no filters selected yet, select all
+  if (activeTypeFilters.size === 0) {
+    types.forEach(t => activeTypeFilters.add(t));
+  }
+
+  container.innerHTML = types.map(type => {
+    const count = cachedActivities.filter(a => a.type === type).length;
+    const active = activeTypeFilters.has(type) ? 'active' : '';
+    return `<button class="filter-chip ${active}" data-type="${type}" onclick="toggleTypeFilter('${type}')">${formatType(type)} (${count})</button>`;
+  }).join('');
+}
+
+function formatType(type) {
+  // Convert "VirtualRide" → "Virtual Ride", etc.
+  return type.replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+
+function toggleTypeFilter(type) {
+  if (activeTypeFilters.has(type)) {
+    activeTypeFilters.delete(type);
+  } else {
+    activeTypeFilters.add(type);
+  }
+  buildFilterChips();
+  renderHeatmap();
+}
+
+function renderHeatmap() {
+  // Remove existing layer
+  if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+
+  const filtered = cachedActivities.filter(a => activeTypeFilters.has(a.type));
+  const status = document.getElementById('heatmap-status');
+  status.textContent = `${filtered.length} activities`;
+
+  if (filtered.length === 0) return;
+
+  // Decode all polylines into heat points
+  const heatPoints = [];
+  for (const activity of filtered) {
+    const points = decodePolylineClient(activity.polyline);
+    for (const [lat, lng] of points) {
+      heatPoints.push([lat, lng, 0.5]); // intensity 0.5
+    }
+  }
+
+  heatLayer = L.heatLayer(heatPoints, {
+    radius: 12,
+    blur: 15,
+    maxZoom: 17,
+    gradient: { 0.2: '#2b83ba', 0.4: '#abdda4', 0.6: '#ffffbf', 0.8: '#fdae61', 1.0: '#d7191c' }
+  }).addTo(map);
+
+  // Move heatmap below route layers
+  if (heatLayer._canvas) {
+    heatLayer._canvas.style.zIndex = '200';
+  }
+}
+
 // --- Strava Status ---
 async function checkStrava() {
   const el = document.getElementById('strava-bar');
@@ -448,6 +581,7 @@ async function checkStrava() {
     if (data.connected) {
       el.className = 'strava-bar connected';
       el.innerHTML = `<span class="strava-dot"></span> Connected as ${data.athlete}`;
+      document.getElementById('heatmap-section').style.display = 'block';
     } else {
       el.className = 'strava-bar disconnected';
       el.innerHTML = `<span class="strava-dot"></span> <a href="/auth/strava">Connect Strava</a>`;
