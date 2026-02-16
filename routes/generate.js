@@ -55,8 +55,7 @@ async function getRoute(waypoints) {
   }
 
   const response = await axios.post(ORS_BASE, {
-    coordinates: waypoints,
-    options: { avoid_features: ['highways'] }
+    coordinates: waypoints
   }, {
     headers: {
       'Authorization': apiKey,
