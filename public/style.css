@@ -1,0 +1,340 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* --- Sidebar --- */
+.sidebar {
+  width: 380px;
+  min-width: 380px;
+  height: 100vh;
+  background: #16213e;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2a2a4a;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: 1.25rem 1.25rem 0.75rem;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.sidebar-header h1 {
+  font-size: 1.4rem;
+  color: #fc4c02;
+  margin-bottom: 0.25rem;
+}
+
+.sidebar-header .subtitle {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+/* --- Strava Status --- */
+.strava-bar {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #2a2a4a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.strava-bar.connected { color: #4caf50; }
+.strava-bar.disconnected { color: #888; }
+
+.strava-bar a {
+  color: #fc4c02;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.strava-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.connected .strava-dot { background: #4caf50; }
+.disconnected .strava-dot { background: #666; }
+
+/* --- Location Section --- */
+.location-section {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.location-section label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+.search-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #2a2a4a;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  border-color: #fc4c02;
+}
+
+.search-input::placeholder {
+  color: #555;
+}
+
+.btn {
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.btn:hover { opacity: 0.85; }
+.btn:active { transform: scale(0.97); }
+
+.btn-search {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+.btn-generate {
+  background: #fc4c02;
+  color: white;
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  margin-top: 0.75rem;
+}
+
+.btn-generate:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.location-hint {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.4rem;
+}
+
+.pin-info {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #4caf50;
+}
+
+/* --- Routes Section --- */
+.routes-section {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+}
+
+.routes-section h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+  margin-bottom: 0.6rem;
+  margin-top: 1rem;
+}
+
+.routes-section h3:first-child {
+  margin-top: 0;
+}
+
+.route-card {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.route-card:hover {
+  border-color: #fc4c02;
+  background: #1e1e3a;
+}
+
+.route-card.active {
+  border-color: #fc4c02;
+  background: rgba(252, 76, 2, 0.1);
+}
+
+.route-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.route-card-info {
+  flex: 1;
+}
+
+.route-card-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.2rem;
+}
+
+.route-card-stats {
+  font-size: 0.8rem;
+  color: #888;
+  display: flex;
+  gap: 1rem;
+}
+
+.route-card-stats span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* --- Loading / Empty States --- */
+.loading-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #888;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #2a2a4a;
+  border-top-color: #fc4c02;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 0.75rem;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.error-msg {
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid #f44336;
+  color: #f44336;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+/* --- Map --- */
+.map-container {
+  flex: 1;
+  height: 100vh;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+}
+
+/* Leaflet popup overrides */
+.leaflet-popup-content-wrapper {
+  background: #16213e;
+  color: #e0e0e0;
+  border-radius: 8px;
+}
+
+.leaflet-popup-tip {
+  background: #16213e;
+}
+
+/* --- Reverse Button --- */
+.btn-reverse {
+  background: transparent;
+  border: 1px solid #2a2a4a;
+  color: #888;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.btn-reverse:hover {
+  color: #fc4c02;
+  border-color: #fc4c02;
+}
+
+/* --- Generate More Button --- */
+.btn-generate-more {
+  background: #2a2a4a;
+  color: #e0e0e0;
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px dashed #444;
+  border-radius: 8px;
+  margin-top: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.btn-generate-more:hover {
+  border-color: #fc4c02;
+  background: #1e1e3a;
+}
+
+.btn-generate-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Selection Hint --- */
+.selection-hint {
+  font-size: 0.7rem;
+  color: #555;
+  text-align: center;
+  margin-bottom: 0.75rem;
+  font-style: italic;
+}

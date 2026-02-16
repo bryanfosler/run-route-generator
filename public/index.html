@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Route Generator</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>Run Route Generator</h1>
+      <p class="subtitle">Find your next run</p>
+    </div>
+
+    <div id="strava-bar" class="strava-bar disconnected">
+      <span class="strava-dot"></span> Checking...
+    </div>
+
+    <div class="location-section">
+      <label>Start Location</label>
+      <div class="search-row">
+        <input type="text" id="search-input" class="search-input" placeholder="Search address or place...">
+        <button class="btn btn-search" onclick="searchLocation()">Search</button>
+      </div>
+      <p class="location-hint">Or click the map to drop a pin</p>
+      <p id="pin-info" class="pin-info"></p>
+      <button id="btn-generate" class="btn btn-generate" onclick="generateRoutes()" disabled>
+        Generate Routes
+      </button>
+    </div>
+
+    <div class="routes-section" id="routes-container">
+      <div class="empty-state">Set a start location, then generate routes</div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

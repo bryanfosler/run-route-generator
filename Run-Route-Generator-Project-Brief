@@ -1,0 +1,78 @@
+Run Route Generator — Project Brief Summary
+Based on our past conversations, here's everything you discussed compiled into a single document:
+🎯 Project Goals
+
+Reduce friction in finding new running routes around Madison
+Match routes to your preferences — distance range, elevation, surface type
+Support both door-to-door AND drive-to-trailhead options
+Export routes to your Garmin watch via GPX files
+Build on skills from the Reddit Research Tool
+
+
+📥 Core Inputs (What You'll Enter)
+InputDescriptionStart locationDefault to home, option for customDistance rangeMin/max miles (e.g., 10-12 mi), with slight flexibilityElevation preferenceFlat, rolling, hilly, or "any"Route typeLoop vs. out-and-backDriving toggle"Willing to drive X minutes to trailhead"
+
+📤 Core Outputs (What You'll Get)
+
+Ranked route suggestions that match your criteria
+Route details: distance, elevation gain, estimated time, surface type
+Interactive map showing the route
+GPX export button to download for Garmin sync
+
+
+🛠 Technical Stack (Matches Your Reddit Tool Pattern)
+Frontend: HTML/CSS/vanilla JavaScript + Leaflet.js for maps
+Backend: Node.js + Express (same as Reddit tool)
+Testing: ngrok for local tunneling
+APIs to integrate:
+
+OpenRouteService (free) — Route calculation + elevation
+Leaflet + OpenStreetMap — Map display (free)
+Strava API (optional later) — Popular segments
+
+
+📁 Proposed File Structure
+run-route-generator/
+├── server.js           # Express backend
+├── package.json        
+├── .env                # API keys (gitignored!)
+├── .env.example        
+├── .gitignore          
+├── public/
+│   ├── index.html      # Main UI
+│   ├── style.css       
+│   └── app.js          # Frontend JS
+├── routes/
+│   ├── generate.js     # Route generation logic
+│   └── export.js       # GPX export
+├── utils/
+│   └── gpx.js          # GPX file generation
+└── start.sh            # One-command startup
+
+📅 Development Phases
+Phase 1 (Week 1): Basic map display + hardcoded test route
+Phase 2 (Week 2): Route generation API + distance filtering
+Phase 3 (Week 3): Elevation prefs + GPX export
+Phase 4 (Week 4+): Multiple suggestions, ranking, polish
+
+❓ Open Questions (Decide While Building)
+
+Prioritize roads or trails by default?
+How precise should elevation preference be?
+Remember last-used settings?
+How many route alternatives to generate?
+
+
+🚀 Claude Code Starter Prompt
+Copy this when you start Claude Code in your project folder:
+I'm building a Run Route Generator web app. I have a project brief 
+(run-route-generator-project-brief.md) in this directory.
+
+Start by:
+1. Reading the project brief
+2. Setting up the basic project structure (Node.js + Express)
+3. Creating a simple UI with a map display using Leaflet.js
+4. Getting a hardcoded test route to display on the map
+
+Follow the same patterns as my Reddit Research Tool - local Node.js 
+server that can be tunneled with ngrok for testing.
