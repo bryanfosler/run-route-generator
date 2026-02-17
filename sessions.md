@@ -27,7 +27,7 @@
 
 **Date:** 02.16.2026
 **Start:** ~9:00 AM CST
-**Time spent:** *session in progress — will update at end*
+**Time spent:** ~2h 30m 00s
 
 ### What We Built
 - Out-and-back detection (overlap scoring with Haversine)
@@ -37,21 +37,29 @@
 - Multi-select routes (shift+click)
 - "Generate More" button (exclude already-shown bearings)
 - Strava activity heatmap with type filter chips
-- GitHub repo setup (gh CLI)
+- GitHub repo setup (gh CLI installed, repo created)
 - Render.com deployment
+- Project documentation (bryanlearns.md, decisionlog.md, keylearnings, sessions.md)
+- GitHub Projects board with 6 backlog issues
+- GitHub Actions → Notion database sync
 
 ### What Shipped
 - Live at https://route-generator-4kka.onrender.com
-- 3 commits pushed to `bryanfosler/run-route-generator`
+- 5 commits pushed to `bryanfosler/run-route-generator`
+- GitHub Projects board: https://github.com/users/bryanfosler/projects/1
+- Notion sync active — issues auto-populate on create/edit/close
 
 ### Bugs Fixed
 - Removed `avoid_features: ['highways']` — invalid for foot-walking profile
 - Fixed Strava OAuth redirect URI for deployed URL
+- Fixed Notion database ID for GitHub Actions sync
 
 ### Decisions Made
 - Heatmap as toggle layer (not separate view)
 - All activity types available as filters
 - Render.com for hosting (free tier)
+- GitHub Projects for sprint tracking (over Notion-only or Linear)
+- GitHub Actions → Notion API for cross-tool sync (over Zapier/Make)
 
 ---
 
