@@ -9,7 +9,7 @@ let activeRouteIndex = null;
 let selectedRoutes = new Set(); // For multi-select (shift+click)
 let usedBearings = [];    // Track bearings already shown (for Generate More)
 
-const ROUTE_COLORS = ['#fc4c02', '#3498db', '#2ecc71', '#e74c3c', '#9b59b6', '#f39c12'];
+const ROUTE_COLORS = ['#fc4c02', '#3498db', '#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c', '#e67e22', '#3455db'];
 
 // --- Heatmap State ---
 let heatLayer = null;
@@ -152,6 +152,20 @@ function displayRoutes(routes) {
   if (routes.medium.length > 0) {
     html += '<h3>Medium (6–9 mi)</h3>';
     routes.medium.forEach((route) => {
+      const idx = routeData.length;
+      const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
+      routeData.push({ ...route, color });
+      if (!usedBearings.includes(route.bearing)) usedBearings.push(route.bearing);
+      html += routeCardHTML(route, idx, color);
+      drawRoute(route.coordinates, color, idx);
+      colorIndex++;
+    });
+  }
+
+  // Long routes
+  if (routes.long && routes.long.length > 0) {
+    html += '<h3>Long (10–15 mi)</h3>';
+    routes.long.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
       routeData.push({ ...route, color });
@@ -365,7 +379,7 @@ function appendRoutes(routes) {
   if (existingBtn) existingBtn.remove();
 
   let html = '';
-  const allNew = [...(routes.short || []), ...(routes.medium || [])];
+  const allNew = [...(routes.short || []), ...(routes.medium || []), ...(routes.long || [])];
 
   if (allNew.length === 0) {
     showError('No additional routes found. All directions have been explored.');
@@ -390,6 +404,20 @@ function appendRoutes(routes) {
   if (routes.medium && routes.medium.length > 0) {
     html += '<h3>More Medium (6–9 mi)</h3>';
     routes.medium.forEach((route) => {
+      const idx = routeData.length;
+      const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
+      routeData.push({ ...route, color });
+      if (!usedBearings.includes(route.bearing)) usedBearings.push(route.bearing);
+      html += routeCardHTML(route, idx, color);
+      drawRoute(route.coordinates, color, idx);
+      colorIndex++;
+    });
+  }
+
+  // Long routes
+  if (routes.long && routes.long.length > 0) {
+    html += '<h3>More Long (10–15 mi)</h3>';
+    routes.long.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
       routeData.push({ ...route, color });

@@ -174,6 +174,7 @@ router.post('/generate', async (req, res) => {
 
   // Short routes: ~1.0–1.5 mi radius → targets 4-6 mi loops
   // Medium routes: ~1.5–2.2 mi radius → targets 6-9 mi loops
+  // Long routes: ~2.5–3.5 mi radius → targets 10-15 mi loops
   const candidates = [];
 
   for (const bearing of bearings) {
@@ -189,9 +190,15 @@ router.post('/generate', async (req, res) => {
       radius: 1.5 + Math.random() * 0.7, // 1.5-2.2 mi
       category: 'medium'
     });
+    // One long candidate per bearing
+    candidates.push({
+      bearing,
+      radius: 2.5 + Math.random() * 1.0, // 2.5-3.5 mi
+      category: 'long'
+    });
   }
 
-  const routes = { short: [], medium: [] };
+  const routes = { short: [], medium: [], long: [] };
   const errors = [];
 
   // Process candidates with a small delay between API calls to avoid rate limiting
@@ -219,6 +226,8 @@ router.post('/generate', async (req, res) => {
         routes.short.push(routeData);
       } else if (dist >= 6 && dist <= 9) {
         routes.medium.push(routeData);
+      } else if (dist >= 10 && dist <= 15) {
+        routes.long.push(routeData);
       }
       // Routes outside these ranges are discarded
 
@@ -233,11 +242,12 @@ router.post('/generate', async (req, res) => {
     }
   }
 
-  // Keep best routes (up to 3 per category, prefer variety in bearing)
-  routes.short = selectBestRoutes(routes.short, 3);
+  // Keep best routes per category, prefer variety in bearing
+  routes.short = selectBestRoutes(routes.short, 4);
   routes.medium = selectBestRoutes(routes.medium, 3);
+  routes.long = selectBestRoutes(routes.long, 2);
 
-  console.log(`Generated ${routes.short.length} short, ${routes.medium.length} medium routes (${errors.length} errors)`);
+  console.log(`Generated ${routes.short.length} short, ${routes.medium.length} medium, ${routes.long.length} long routes (${errors.length} errors)`);
 
   res.json({
     routes,
