@@ -3,31 +3,56 @@ name: Sync Issues to Notion
 on:
   issues:
     types: [opened, edited, closed, reopened, labeled, unlabeled]
+  issue_comment:
+    types: [created]
 
 jobs:
   sync-to-notion:
     runs-on: ubuntu-latest
+    # Only run for issue events OR comments that contain time logs
+    if: >
+      github.event_name == 'issues' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, 'Time:'))
     steps:
       - name: Sync issue to Notion database
         uses: actions/github-script@v7
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         with:
           script: |
             const issue = context.payload.issue;
-            const action = context.payload.action;
-
             const notionKey = process.env.NOTION_API_KEY;
-            const dbId = process.env.NOTION_DATABASE_ID;
+            const dbId = '30a95da6-c9dc-805a-8dcc-cf1dc2694ea2';
 
             // Map GitHub issue state to Notion status
-            const statusMap = {
-              open: 'Open',
-              closed: 'Done'
-            };
+            const statusMap = { open: 'Open', closed: 'Done' };
             const status = statusMap[issue.state] || 'Open';
             const labels = issue.labels.map(l => l.name);
+
+            // Parse time from a string like "1h30m", "45m", "2h", "90m"
+            function parseMinutes(str) {
+              let total = 0;
+              const hours = str.match(/(\d+)\s*h/i);
+              const mins = str.match(/(\d+)\s*m/i);
+              if (hours) total += parseInt(hours[1]) * 60;
+              if (mins) total += parseInt(mins[1]);
+              return total;
+            }
+
+            // Fetch all comments and sum up time entries (format: "Time: Xh Ym")
+            const commentsRes = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              per_page: 100
+            });
+            let totalMinutes = 0;
+            for (const comment of commentsRes.data) {
+              const match = comment.body.match(/Time:\s*([\dhmHM\s]+)/);
+              if (match) {
+                totalMinutes += parseMinutes(match[1]);
+              }
+            }
 
             // Search for existing page with this issue URL
             const searchRes = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
@@ -65,11 +90,13 @@ jobs:
               },
               'Project': {
                 select: { name: 'Route Generator' }
+              },
+              'Time Spent (min)': {
+                number: totalMinutes
               }
             };
 
             if (existingPage) {
-              // Update existing page
               const updateRes = await fetch(`https://api.notion.com/v1/pages/${existingPage.id}`, {
                 method: 'PATCH',
                 headers: {
@@ -81,12 +108,11 @@ jobs:
               });
               const updateData = await updateRes.json();
               if (updateData.id) {
-                console.log(`Updated Notion page for issue #${issue.number}`);
+                console.log(`Updated Notion page for issue #${issue.number} (${totalMinutes} min)`);
               } else {
                 console.log('Update response:', JSON.stringify(updateData));
               }
             } else {
-              // Create new page
               const createRes = await fetch('https://api.notion.com/v1/pages', {
                 method: 'POST',
                 headers: {
@@ -101,7 +127,7 @@ jobs:
               });
               const createData = await createRes.json();
               if (createData.id) {
-                console.log(`Created Notion page for issue #${issue.number}`);
+                console.log(`Created Notion page for issue #${issue.number} (${totalMinutes} min)`);
               } else {
                 console.log('Create response:', JSON.stringify(createData));
               }
