@@ -62,6 +62,9 @@ jobs:
               },
               'Created': {
                 date: { start: issue.created_at }
+              },
+              'Project': {
+                select: { name: 'Route Generator' }
               }
             };
 
