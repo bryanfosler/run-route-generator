@@ -2,7 +2,24 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const ORS_BASE = 'https://api.openrouteservice.org/v2/directions/foot-walking';
+const ORS_PROFILES = {
+  running: 'https://api.openrouteservice.org/v2/directions/foot-walking',
+  cycling: 'https://api.openrouteservice.org/v2/directions/cycling-road'
+};
+
+// Mode-specific configuration
+const MODE_CONFIG = {
+  running: {
+    short:  { radiusMin: 1.0, radiusMax: 1.5, distMin: 4,  distMax: 6,  maxRoutes: 4, paceMinPerMile: 10 },
+    medium: { radiusMin: 1.5, radiusMax: 2.2, distMin: 6,  distMax: 9,  maxRoutes: 3, paceMinPerMile: 10 },
+    long:   { radiusMin: 2.5, radiusMax: 3.5, distMin: 10, distMax: 15, maxRoutes: 2, paceMinPerMile: 10 }
+  },
+  cycling: {
+    short:  { radiusMin: 4.0, radiusMax: 6.0,  distMin: 16, distMax: 25, maxRoutes: 4, paceMinPerMile: 3.5 },
+    medium: { radiusMin: 6.5, radiusMax: 10.0, distMin: 26, distMax: 40, maxRoutes: 3, paceMinPerMile: 3.5 },
+    long:   { radiusMin: 10.0, radiusMax: 17.0, distMin: 41, distMax: 70, maxRoutes: 2, paceMinPerMile: 3.5 }
+  }
+};
 
 // Convert degrees to radians
 function toRad(deg) { return deg * Math.PI / 180; }
@@ -48,13 +65,13 @@ function generateLoopWaypoints(startLat, startLng, bearingDeg, radiusMiles) {
 }
 
 // Call OpenRouteService directions API
-async function getRoute(waypoints) {
+async function getRoute(waypoints, profileUrl) {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey) {
     throw new Error('ORS_API_KEY not set in .env');
   }
 
-  const response = await axios.post(ORS_BASE, {
+  const response = await axios.post(profileUrl, {
     coordinates: waypoints
   }, {
     headers: {
@@ -148,21 +165,24 @@ function calculateOverlapScore(coordinates) {
   return overlapMeters * 0.000621371; // Convert to miles
 }
 
-// Estimate pace (minutes per mile) — rough average for running
-function estimateTime(distanceMiles) {
-  const paceMinPerMile = 10; // 10 min/mile average
+// Estimate time based on pace
+function estimateTime(distanceMiles, paceMinPerMile = 10) {
   return Math.round(parseFloat(distanceMiles) * paceMinPerMile);
 }
 
 // POST /api/routes/generate
 router.post('/generate', async (req, res) => {
-  const { lat, lng, exclude_bearings } = req.body;
+  const { lat, lng, exclude_bearings, mode } = req.body;
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'lat and lng are required' });
   }
 
-  console.log(`Generating routes from [${lat}, ${lng}]...`);
+  const activeMode = (mode === 'cycling') ? 'cycling' : 'running';
+  const config = MODE_CONFIG[activeMode];
+  const profileUrl = ORS_PROFILES[activeMode];
+
+  console.log(`Generating ${activeMode} routes from [${lat}, ${lng}]...`);
 
   let bearings = [0, 45, 90, 135, 180, 225, 270, 315];
 
@@ -172,30 +192,16 @@ router.post('/generate', async (req, res) => {
     console.log(`Excluding bearings: ${exclude_bearings.join(', ')} → using: ${bearings.join(', ')}`);
   }
 
-  // Short routes: ~1.0–1.5 mi radius → targets 4-6 mi loops
-  // Medium routes: ~1.5–2.2 mi radius → targets 6-9 mi loops
-  // Long routes: ~2.5–3.5 mi radius → targets 10-15 mi loops
   const candidates = [];
 
   for (const bearing of bearings) {
-    // One short candidate per bearing
-    candidates.push({
-      bearing,
-      radius: 1.0 + Math.random() * 0.5, // 1.0-1.5 mi
-      category: 'short'
-    });
-    // One medium candidate per bearing
-    candidates.push({
-      bearing,
-      radius: 1.5 + Math.random() * 0.7, // 1.5-2.2 mi
-      category: 'medium'
-    });
-    // One long candidate per bearing
-    candidates.push({
-      bearing,
-      radius: 2.5 + Math.random() * 1.0, // 2.5-3.5 mi
-      category: 'long'
-    });
+    for (const [category, cfg] of Object.entries(config)) {
+      candidates.push({
+        bearing,
+        radius: cfg.radiusMin + Math.random() * (cfg.radiusMax - cfg.radiusMin),
+        category
+      });
+    }
   }
 
   const routes = { short: [], medium: [], long: [] };
@@ -205,10 +211,11 @@ router.post('/generate', async (req, res) => {
   for (const candidate of candidates) {
     try {
       const waypoints = generateLoopWaypoints(lat, lng, candidate.bearing, candidate.radius);
-      const route = await getRoute(waypoints);
+      const route = await getRoute(waypoints, profileUrl);
 
       const dist = parseFloat(route.distanceMiles);
-      const estTime = estimateTime(route.distanceMiles);
+      const cfg = config[candidate.category];
+      const estTime = estimateTime(route.distanceMiles, cfg.paceMinPerMile);
       const overlapMiles = parseFloat(calculateOverlapScore(route.coordinates).toFixed(2));
 
       console.log(`  ${getBearingLabel(candidate.bearing)} ${candidate.category}: ${dist} mi, overlap: ${overlapMiles} mi`);
@@ -221,15 +228,10 @@ router.post('/generate', async (req, res) => {
         overlapMiles
       };
 
-      // Categorize by actual distance
-      if (dist >= 4 && dist <= 6) {
-        routes.short.push(routeData);
-      } else if (dist >= 6 && dist <= 9) {
-        routes.medium.push(routeData);
-      } else if (dist >= 10 && dist <= 15) {
-        routes.long.push(routeData);
+      // Categorize by actual distance using mode-specific ranges
+      if (dist >= cfg.distMin && dist <= cfg.distMax) {
+        routes[candidate.category].push(routeData);
       }
-      // Routes outside these ranges are discarded
 
       // Small delay to be nice to ORS free tier
       await new Promise(r => setTimeout(r, 200));
@@ -242,15 +244,21 @@ router.post('/generate', async (req, res) => {
     }
   }
 
-  // Keep best routes per category, prefer variety in bearing
-  routes.short = selectBestRoutes(routes.short, 4);
-  routes.medium = selectBestRoutes(routes.medium, 3);
-  routes.long = selectBestRoutes(routes.long, 2);
+  // Keep best routes per category
+  for (const [category, cfg] of Object.entries(config)) {
+    routes[category] = selectBestRoutes(routes[category], cfg.maxRoutes);
+  }
 
-  console.log(`Generated ${routes.short.length} short, ${routes.medium.length} medium, ${routes.long.length} long routes (${errors.length} errors)`);
+  console.log(`Generated ${routes.short.length} short, ${routes.medium.length} medium, ${routes.long.length} long ${activeMode} routes (${errors.length} errors)`);
 
   res.json({
     routes,
+    mode: activeMode,
+    distanceLabels: {
+      short: `${config.short.distMin}–${config.short.distMax} mi`,
+      medium: `${config.medium.distMin}–${config.medium.distMax} mi`,
+      long: `${config.long.distMin}–${config.long.distMax} mi`
+    },
     totalCandidates: candidates.length,
     errors: errors.length
   });

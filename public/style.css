@@ -29,12 +29,37 @@ body {
 .sidebar-header h1 {
   font-size: 1.4rem;
   color: #fc4c02;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
-.sidebar-header .subtitle {
+/* --- Mode Toggle --- */
+.mode-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #2a2a4a;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 0.45rem 0;
+  border: none;
+  background: #1a1a2e;
   color: #888;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.mode-btn:hover {
+  color: #e0e0e0;
+}
+
+.mode-btn.active {
+  background: #fc4c02;
+  color: white;
 }
 
 /* --- Strava Status --- */

@@ -8,6 +8,8 @@ let routeData = [];       // Route objects from API
 let activeRouteIndex = null;
 let selectedRoutes = new Set(); // For multi-select (shift+click)
 let usedBearings = [];    // Track bearings already shown (for Generate More)
+let activeMode = 'running'; // 'running' or 'cycling'
+let distanceLabels = null;  // Dynamic labels from backend
 
 const ROUTE_COLORS = ['#fc4c02', '#3498db', '#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c', '#e67e22', '#3455db'];
 
@@ -91,6 +93,16 @@ async function searchLocation() {
   }
 }
 
+// --- Mode Toggle ---
+function setMode(mode) {
+  activeMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  // Clear existing routes when switching modes
+  clearRoutes();
+}
+
 // --- Route Generation ---
 async function generateRoutes() {
   if (!startLatLng) return;
@@ -107,7 +119,7 @@ async function generateRoutes() {
     const res = await fetch('/api/routes/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat: startLatLng.lat, lng: startLatLng.lng })
+      body: JSON.stringify({ lat: startLatLng.lat, lng: startLatLng.lng, mode: activeMode })
     });
 
     const data = await res.json();
@@ -116,6 +128,7 @@ async function generateRoutes() {
       throw new Error(data.error || 'Route generation failed');
     }
 
+    distanceLabels = data.distanceLabels;
     displayRoutes(data.routes);
   } catch (err) {
     showError('Route generation failed: ' + err.message);
@@ -136,7 +149,7 @@ function displayRoutes(routes) {
 
   // Short routes
   if (routes.short.length > 0) {
-    html += '<h3>Short (4–6 mi)</h3>';
+    html += `<h3>Short (${distanceLabels?.short || '4–6 mi'})</h3>`;
     routes.short.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
@@ -150,7 +163,7 @@ function displayRoutes(routes) {
 
   // Medium routes
   if (routes.medium.length > 0) {
-    html += '<h3>Medium (6–9 mi)</h3>';
+    html += `<h3>Medium (${distanceLabels?.medium || '6–9 mi'})</h3>`;
     routes.medium.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
@@ -164,7 +177,7 @@ function displayRoutes(routes) {
 
   // Long routes
   if (routes.long && routes.long.length > 0) {
-    html += '<h3>Long (10–15 mi)</h3>';
+    html += `<h3>Long (${distanceLabels?.long || '10–15 mi'})</h3>`;
     routes.long.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
@@ -349,7 +362,8 @@ async function generateMoreRoutes() {
       body: JSON.stringify({
         lat: startLatLng.lat,
         lng: startLatLng.lng,
-        exclude_bearings: usedBearings
+        exclude_bearings: usedBearings,
+        mode: activeMode
       })
     });
 
@@ -388,7 +402,7 @@ function appendRoutes(routes) {
 
   // Short routes
   if (routes.short && routes.short.length > 0) {
-    html += '<h3>More Short (4–6 mi)</h3>';
+    html += `<h3>More Short (${distanceLabels?.short || '4–6 mi'})</h3>`;
     routes.short.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
@@ -402,7 +416,7 @@ function appendRoutes(routes) {
 
   // Medium routes
   if (routes.medium && routes.medium.length > 0) {
-    html += '<h3>More Medium (6–9 mi)</h3>';
+    html += `<h3>More Medium (${distanceLabels?.medium || '6–9 mi'})</h3>`;
     routes.medium.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];
@@ -416,7 +430,7 @@ function appendRoutes(routes) {
 
   // Long routes
   if (routes.long && routes.long.length > 0) {
-    html += '<h3>More Long (10–15 mi)</h3>';
+    html += `<h3>More Long (${distanceLabels?.long || '10–15 mi'})</h3>`;
     routes.long.forEach((route) => {
       const idx = routeData.length;
       const color = ROUTE_COLORS[colorIndex % ROUTE_COLORS.length];

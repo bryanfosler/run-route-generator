@@ -11,8 +11,11 @@
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-header">
-      <h1>Run Route Generator</h1>
-      <p class="subtitle">Find your next run</p>
+      <h1>Route Generator</h1>
+      <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="running" onclick="setMode('running')">Running</button>
+        <button class="mode-btn" data-mode="cycling" onclick="setMode('cycling')">Cycling</button>
+      </div>
     </div>
 
     <div id="strava-bar" class="strava-bar disconnected">
