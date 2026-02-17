@@ -27,7 +27,7 @@
 
 **Date:** 02.16.2026
 **Start:** ~9:00 AM CST
-**Time spent:** ~2h 45m 00s
+**Time spent:** ~3h 00m 00s
 
 ### What We Built
 - Out-and-back detection (overlap scoring with Haversine)
