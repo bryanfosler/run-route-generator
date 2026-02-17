@@ -20,6 +20,6 @@ app.use('/api/strava', stravaActivities);
 app.use('/api/routes', generateRoutes);
 
 app.listen(PORT, () => {
-  console.log(`Run Route Generator running at http://localhost:${PORT}`);
+  console.log(`Route Generator running at http://localhost:${PORT}`);
   console.log(`Connect Strava: http://localhost:${PORT}/auth/strava`);
 });

@@ -1,7 +1,7 @@
 {
-  "name": "run-route-generator",
+  "name": "route-generator",
   "version": "1.0.0",
-  "description": "Running route generator with Strava integration",
+  "description": "Route generator for running and cycling with Strava integration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
