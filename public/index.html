@@ -36,12 +36,18 @@
       <div class="search-row">
         <input type="text" id="search-input" class="search-input" placeholder="Search address or place...">
         <button class="btn btn-search" onclick="searchLocation()">Search</button>
+        <button class="btn btn-locate" onclick="detectLocation()" title="Use my current location">&#x25CE;</button>
       </div>
       <p class="location-hint">Or click the map to drop a pin</p>
       <p id="pin-info" class="pin-info"></p>
-      <button id="btn-generate" class="btn btn-generate" onclick="generateRoutes()" disabled>
-        Generate Routes
-      </button>
+      <div class="generate-row">
+        <button id="btn-generate" class="btn btn-generate" onclick="generateRoutes()" disabled>
+          Generate Routes
+        </button>
+        <button id="btn-quiet" class="btn mode-btn" onclick="toggleQuiet()" title="Prefer quieter, lower-traffic streets">
+          Quiet
+        </button>
+      </div>
     </div>
 
     <div class="routes-section" id="routes-container">

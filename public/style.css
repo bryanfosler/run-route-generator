@@ -150,13 +150,30 @@ body {
   color: #e0e0e0;
 }
 
+.btn-locate {
+  background: #2a2a4a;
+  color: #e0e0e0;
+  font-size: 1.1rem;
+  padding: 0.6rem 0.65rem;
+}
+
+.btn-locate:hover {
+  color: #fc4c02;
+}
+
+/* --- Generate Row (Generate button + Quiet toggle) --- */
+.generate-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 .btn-generate {
   background: #fc4c02;
   color: white;
-  width: 100%;
+  flex: 1;
   padding: 0.75rem;
   font-size: 0.95rem;
-  margin-top: 0.75rem;
 }
 
 .btn-generate:disabled {
@@ -297,6 +314,11 @@ body {
   height: 100%;
 }
 
+#map.zoom-dragging,
+#map.zoom-dragging * {
+  cursor: ns-resize !important;
+}
+
 /* Leaflet popup overrides */
 .leaflet-popup-content-wrapper {
   background: #16213e;
@@ -306,6 +328,28 @@ body {
 
 .leaflet-popup-tip {
   background: #16213e;
+}
+
+/* --- Icon Buttons (GPX download, reverse) --- */
+.btn-icon {
+  background: transparent;
+  border: 1px solid #2a2a4a;
+  color: #888;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.btn-icon:hover {
+  color: #fc4c02;
+  border-color: #fc4c02;
 }
 
 /* --- Reverse Button --- */
@@ -417,6 +461,16 @@ body {
   margin-top: 0.6rem;
 }
 
+/* Colored dot inside filter chips */
+.type-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
 .filter-chip {
   padding: 0.3rem 0.6rem;
   border-radius: 12px;
@@ -426,6 +480,8 @@ body {
   font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
 }
 
 .filter-chip:hover {

@@ -10,18 +10,52 @@ let selectedRoutes = new Set(); // For multi-select (shift+click)
 let usedBearings = [];    // Track bearings already shown (for Generate More)
 let activeMode = 'running'; // 'running' or 'cycling'
 let distanceLabels = null;  // Dynamic labels from backend
+let quietMode = false;      // Quiet streets preference
 
 const ROUTE_COLORS = ['#fc4c02', '#3498db', '#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c', '#e67e22', '#3455db'];
 
 // --- Heatmap State ---
-let heatLayer = null;
+let heatLayers = {};      // { type → L.heatLayer }
 let heatmapVisible = false;
 let cachedActivities = null;
 let activeTypeFilters = new Set(); // Which activity types are selected
 
+// Color gradients per activity type
+const TYPE_GRADIENTS = {
+  Run:         { 0.2: '#fdae61', 0.6: '#fc4c02', 1.0: '#d7191c' },
+  TrailRun:    { 0.2: '#fdae61', 0.6: '#fc4c02', 1.0: '#d7191c' },
+  Ride:        { 0.2: '#74add1', 0.6: '#2b83ba', 1.0: '#4575b4' },
+  VirtualRide: { 0.2: '#74add1', 0.6: '#2b83ba', 1.0: '#4575b4' },
+  Walk:        { 0.2: '#abdda4', 0.6: '#1a9641', 1.0: '#006837' },
+  Hike:        { 0.2: '#abdda4', 0.6: '#1a9641', 1.0: '#006837' },
+  Swim:        { 0.2: '#74add1', 0.6: '#2166ac', 1.0: '#084594' },
+};
+
+// Representative dot color for filter chips
+const TYPE_DOT_COLORS = {
+  Run:         '#fc4c02',
+  TrailRun:    '#fc4c02',
+  Ride:        '#2b83ba',
+  VirtualRide: '#2b83ba',
+  Walk:        '#1a9641',
+  Hike:        '#1a9641',
+  Swim:        '#2166ac',
+};
+
+function getTypeGradient(type) {
+  return TYPE_GRADIENTS[type] || { 0.2: '#c2a5cf', 0.6: '#8073ac', 1.0: '#542788' };
+}
+
+function getTypeDotColor(type) {
+  return TYPE_DOT_COLORS[type] || '#8073ac';
+}
+
 // --- Map Setup ---
 function initMap() {
-  map = L.map('map', { zoomControl: false }).setView([43.0731, -89.4012], 13); // Madison, WI default
+  map = L.map('map', {
+    zoomControl: false,
+    doubleClickZoom: false  // handled manually below
+  }).setView([43.0731, -89.4012], 13); // Madison, WI default
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
@@ -30,9 +64,67 @@ function initMap() {
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  // Click to drop pin
+  // --- Click gestures: single = pin, double = zoom in, triple = zoom out ---
+  // 250ms debounce lets us distinguish single from double/triple click
+  const clickSeq   = { count: 0, timer: null, latlng: null };
+  const dragZoom   = { watching: false, active: false, startY: 0, startZoom: 0 };
+  let lastMouseupMs = 0;
+
   map.on('click', (e) => {
-    setStartLocation(e.latlng.lat, e.latlng.lng);
+    if (dragZoom.active) return;
+    clickSeq.latlng = e.latlng;
+    clickSeq.count++;
+    if (clickSeq.timer) clearTimeout(clickSeq.timer);
+    clickSeq.timer = setTimeout(() => {
+      const n  = clickSeq.count;
+      const ll = clickSeq.latlng;
+      clickSeq.count = 0;
+      clickSeq.timer = null;
+      if      (n === 1) setStartLocation(ll.lat, ll.lng);
+      else if (n === 2) map.flyTo(ll, map.getZoom() + 1);
+      else              map.flyTo(ll, map.getZoom() - 1);
+    }, 250);
+  });
+
+  // --- Drag-zoom: double-click-hold + drag up (zoom in) / down (zoom out) ---
+  const mapEl = document.getElementById('map');
+
+  // capture=true so we see the mousedown before Leaflet does
+  mapEl.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (Date.now() - lastMouseupMs < 300) {
+      // Second press within 300ms — watch for a drag
+      dragZoom.watching  = true;
+      dragZoom.startY    = e.clientY;
+      dragZoom.startZoom = map.getZoom();
+      map.dragging.disable(); // prevent Leaflet from panning during drag-zoom
+    }
+  }, true);
+
+  document.addEventListener('mousemove', (e) => {
+    if (dragZoom.watching && Math.abs(e.clientY - dragZoom.startY) > 4) {
+      // Threshold crossed — commit to drag-zoom
+      dragZoom.watching = false;
+      dragZoom.active   = true;
+      mapEl.classList.add('zoom-dragging');
+      // Cancel any pending click so it doesn't place a pin
+      if (clickSeq.timer) { clearTimeout(clickSeq.timer); clickSeq.count = 0; clickSeq.timer = null; }
+    }
+    if (dragZoom.active) {
+      const dy   = dragZoom.startY - e.clientY;           // up = positive = zoom in
+      const zoom = Math.max(1, Math.min(19, dragZoom.startZoom + dy / 100));
+      map.setZoom(zoom, { animate: false });
+    }
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (e.button !== 0) return;
+    lastMouseupMs = Date.now();
+    const wasEngaged = dragZoom.watching || dragZoom.active;
+    dragZoom.watching = false;
+    dragZoom.active   = false;
+    mapEl.classList.remove('zoom-dragging');
+    if (wasEngaged) map.dragging.enable();
   });
 }
 
@@ -93,6 +185,36 @@ async function searchLocation() {
   }
 }
 
+function detectLocation() {
+  if (!navigator.geolocation) {
+    showError('Geolocation is not supported by your browser.');
+    return;
+  }
+
+  const btn = document.querySelector('.btn-locate');
+  btn.textContent = '...';
+  btn.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      setStartLocation(pos.coords.latitude, pos.coords.longitude);
+      btn.textContent = '◎';
+      btn.disabled = false;
+    },
+    (err) => {
+      const messages = {
+        1: 'Location access denied. Allow location in your browser settings.',
+        2: 'Location unavailable. Try searching instead.',
+        3: 'Location request timed out. Try again.'
+      };
+      showError(messages[err.code] || 'Could not get location.');
+      btn.textContent = '◎';
+      btn.disabled = false;
+    },
+    { timeout: 10000, maximumAge: 60000 }
+  );
+}
+
 // --- Mode Toggle ---
 function setMode(mode) {
   activeMode = mode;
@@ -101,6 +223,13 @@ function setMode(mode) {
   });
   // Clear existing routes when switching modes
   clearRoutes();
+}
+
+// --- Quiet Mode Toggle ---
+function toggleQuiet() {
+  quietMode = !quietMode;
+  const btn = document.getElementById('btn-quiet');
+  btn.classList.toggle('active', quietMode);
 }
 
 // --- Route Generation ---
@@ -119,7 +248,7 @@ async function generateRoutes() {
     const res = await fetch('/api/routes/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat: startLatLng.lat, lng: startLatLng.lng, mode: activeMode })
+      body: JSON.stringify({ lat: startLatLng.lat, lng: startLatLng.lng, mode: activeMode, quiet: quietMode })
     });
 
     const data = await res.json();
@@ -212,20 +341,36 @@ function displayRoutes(routes) {
 function routeCardHTML(route, index, color) {
   const elev = route.elevationGainFt ? `${route.elevationGainFt} ft` : '—';
   const estTime = route.estimatedMinutes || route.durationMinutes;
+  const name = `${route.bearingLabel} Loop`;
   return `
     <div class="route-card" data-index="${index}" onclick="highlightRoute(${index}, event)">
       <div class="route-color-dot" style="background: ${color}"></div>
       <div class="route-card-info">
-        <div class="route-card-title">${route.bearingLabel} Loop</div>
+        <div class="route-card-title">${name}</div>
         <div class="route-card-stats">
           <span>${route.distanceMiles} mi</span>
           <span>${elev} elev</span>
           <span>~${estTime} min</span>
         </div>
       </div>
+      <button class="btn-icon" onclick="event.stopPropagation(); downloadGPX(${index})" title="Download GPX">&#x2193;</button>
       <button class="btn-reverse" onclick="event.stopPropagation(); reverseRoute(${index})" title="Reverse direction">&#x21bb;</button>
     </div>
   `;
+}
+
+function buildDecorator(polyline, color, opacity, pixelSize) {
+  return L.polylineDecorator(polyline, {
+    patterns: [{
+      offset: '50px',
+      repeat: '150px',
+      symbol: L.Symbol.arrowHead({
+        pixelSize: pixelSize,
+        polygon: false,
+        pathOptions: { stroke: true, color: color, weight: 2, opacity: opacity }
+      })
+    }]
+  }).addTo(map);
 }
 
 function drawRoute(coordinates, color, index) {
@@ -238,20 +383,7 @@ function drawRoute(coordinates, color, index) {
   polyline.on('click', (e) => highlightRoute(index, e.originalEvent));
   routeLayers.push(polyline);
 
-  // Add direction chevrons
-  const decorator = L.polylineDecorator(polyline, {
-    patterns: [{
-      offset: '50px',
-      repeat: '150px',
-      symbol: L.Symbol.arrowHead({
-        pixelSize: 10,
-        polygon: false,
-        pathOptions: { stroke: true, color: color, weight: 2, opacity: 0.8 }
-      })
-    }]
-  }).addTo(map);
-
-  decoratorLayers.push(decorator);
+  decoratorLayers.push(buildDecorator(polyline, color, 0.8, 10));
 }
 
 function highlightRoute(index, event) {
@@ -288,15 +420,14 @@ function applyRouteStyles() {
       opacity: hasSelection ? (isSelected ? 1.0 : 0.2) : 0.7
     });
     if (isSelected) layer.bringToFront();
-  });
 
-  // Update decorator opacity to match
-  decoratorLayers.forEach((dec, i) => {
-    if (dec) {
-      const isSelected = selectedRoutes.has(i);
-      const opacity = hasSelection ? (isSelected ? 0.8 : 0.1) : 0.8;
-      dec.setStyle({ opacity });
-    }
+    // Redraw decorator — L.PolylineDecorator doesn't support setStyle,
+    // so remove and rebuild with the correct opacity/size each time.
+    if (decoratorLayers[i]) map.removeLayer(decoratorLayers[i]);
+    const route = routeData[i];
+    const arrowOpacity = hasSelection ? (isSelected ? 1.0 : 0.05) : 0.8;
+    const arrowSize = hasSelection && isSelected ? 13 : 10;
+    decoratorLayers[i] = buildDecorator(layer, route.color, arrowOpacity, arrowSize);
   });
 
   // Update card active state
@@ -331,18 +462,40 @@ function reverseRoute(index) {
 
   // Redraw decorator
   map.removeLayer(decoratorLayers[index]);
-  const decorator = L.polylineDecorator(routeLayers[index], {
-    patterns: [{
-      offset: '50px',
-      repeat: '150px',
-      symbol: L.Symbol.arrowHead({
-        pixelSize: 10,
-        polygon: false,
-        pathOptions: { stroke: true, color: route.color, weight: 2, opacity: 0.8 }
-      })
-    }]
-  }).addTo(map);
-  decoratorLayers[index] = decorator;
+  const isSelected = selectedRoutes.has(index);
+  const hasSelection = selectedRoutes.size > 0;
+  const arrowOpacity = hasSelection ? (isSelected ? 1.0 : 0.05) : 0.8;
+  const arrowSize = hasSelection && isSelected ? 13 : 10;
+  decoratorLayers[index] = buildDecorator(routeLayers[index], route.color, arrowOpacity, arrowSize);
+}
+
+// --- GPX Export ---
+function downloadGPX(index) {
+  const route = routeData[index];
+  if (!route) return;
+
+  const name = `${route.bearingLabel} Loop ${route.distanceMiles}mi`;
+  const trkpts = route.coordinates
+    .map(([lat, lng]) => `      <trkpt lat="${lat}" lon="${lng}"></trkpt>`)
+    .join('\n');
+
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Run Route Generator" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>${name}</name>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>`;
+
+  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}.gpx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // --- Generate More ---
@@ -363,7 +516,8 @@ async function generateMoreRoutes() {
         lat: startLatLng.lat,
         lng: startLatLng.lng,
         exclude_bearings: usedBearings,
-        mode: activeMode
+        mode: activeMode,
+        quiet: quietMode
       })
     });
 
@@ -508,8 +662,9 @@ async function toggleHeatmap() {
   const status = document.getElementById('heatmap-status');
 
   if (heatmapVisible) {
-    // Hide
-    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    // Hide — remove all type layers
+    Object.values(heatLayers).forEach(layer => map.removeLayer(layer));
+    heatLayers = {};
     heatmapVisible = false;
     btn.textContent = 'Show Heatmap';
     btn.classList.remove('active');
@@ -562,7 +717,8 @@ function buildFilterChips() {
   container.innerHTML = types.map(type => {
     const count = cachedActivities.filter(a => a.type === type).length;
     const active = activeTypeFilters.has(type) ? 'active' : '';
-    return `<button class="filter-chip ${active}" data-type="${type}" onclick="toggleTypeFilter('${type}')">${formatType(type)} (${count})</button>`;
+    const dotColor = getTypeDotColor(type);
+    return `<button class="filter-chip ${active}" data-type="${type}" onclick="toggleTypeFilter('${type}')"><span class="type-dot" style="background:${dotColor}"></span>${formatType(type)} (${count})</button>`;
   }).join('');
 }
 
@@ -582,35 +738,37 @@ function toggleTypeFilter(type) {
 }
 
 function renderHeatmap() {
-  // Remove existing layer
-  if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+  // Remove all existing heat layers
+  Object.values(heatLayers).forEach(layer => map.removeLayer(layer));
+  heatLayers = {};
 
-  const filtered = cachedActivities.filter(a => activeTypeFilters.has(a.type));
-  const status = document.getElementById('heatmap-status');
-  status.textContent = `${filtered.length} activities`;
+  const types = [...activeTypeFilters];
+  let totalCount = 0;
 
-  if (filtered.length === 0) return;
+  for (const type of types) {
+    const activities = cachedActivities.filter(a => a.type === type && activeTypeFilters.has(a.type));
+    if (activities.length === 0) continue;
 
-  // Decode all polylines into heat points
-  const heatPoints = [];
-  for (const activity of filtered) {
-    const points = decodePolylineClient(activity.polyline);
-    for (const [lat, lng] of points) {
-      heatPoints.push([lat, lng, 0.5]); // intensity 0.5
+    const heatPoints = [];
+    for (const activity of activities) {
+      const points = decodePolylineClient(activity.polyline);
+      for (const [lat, lng] of points) {
+        heatPoints.push([lat, lng, 0.5]);
+      }
     }
+
+    heatLayers[type] = L.heatLayer(heatPoints, {
+      radius: 12,
+      blur: 15,
+      maxZoom: 17,
+      gradient: getTypeGradient(type)
+    }).addTo(map);
+
+    totalCount += activities.length;
   }
 
-  heatLayer = L.heatLayer(heatPoints, {
-    radius: 12,
-    blur: 15,
-    maxZoom: 17,
-    gradient: { 0.2: '#2b83ba', 0.4: '#abdda4', 0.6: '#ffffbf', 0.8: '#fdae61', 1.0: '#d7191c' }
-  }).addTo(map);
-
-  // Move heatmap below route layers
-  if (heatLayer._canvas) {
-    heatLayer._canvas.style.zIndex = '200';
-  }
+  const status = document.getElementById('heatmap-status');
+  status.textContent = `${totalCount} activities`;
 }
 
 // --- Strava Status ---

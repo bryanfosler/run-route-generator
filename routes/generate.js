@@ -12,7 +12,7 @@ const MODE_CONFIG = {
   running: {
     short:  { radiusMin: 1.0, radiusMax: 1.5, distMin: 4,  distMax: 6,  maxRoutes: 4, paceMinPerMile: 10 },
     medium: { radiusMin: 1.5, radiusMax: 2.2, distMin: 6,  distMax: 9,  maxRoutes: 3, paceMinPerMile: 10 },
-    long:   { radiusMin: 2.5, radiusMax: 3.5, distMin: 10, distMax: 15, maxRoutes: 2, paceMinPerMile: 10 }
+    long:   { radiusMin: 2.5, radiusMax: 3.5, distMin: 9,  distMax: 15, maxRoutes: 2, paceMinPerMile: 10 }
   },
   cycling: {
     short:  { radiusMin: 4.0, radiusMax: 6.0,  distMin: 16, distMax: 25, maxRoutes: 4, paceMinPerMile: 3.5 },
@@ -44,7 +44,7 @@ function offsetPoint(lat, lng, distanceMiles, bearingDeg) {
   return [toDeg(lat2), toDeg(lng2)];
 }
 
-// Generate waypoints for a loop route at a given bearing and radius
+// Generate waypoints for a loop route at a given bearing and radius (4-point diamond)
 function generateLoopWaypoints(startLat, startLng, bearingDeg, radiusMiles) {
   // Create a rough diamond/loop shape
   // Point B: out at the main bearing
@@ -64,16 +64,43 @@ function generateLoopWaypoints(startLat, startLng, bearingDeg, radiusMiles) {
   ];
 }
 
+// Generate waypoints for long routes — 5-point pentagon for more mileage and variety
+function generateLongLoopWaypoints(startLat, startLng, bearingDeg, radiusMiles) {
+  // Point B: out at the main bearing
+  const B = offsetPoint(startLat, startLng, radiusMiles, bearingDeg);
+  // Point C: offset perpendicular (bearing + 90)
+  const C = offsetPoint(startLat, startLng, radiusMiles, (bearingDeg + 90) % 360);
+  // Point D: opposite side
+  const D = offsetPoint(startLat, startLng, radiusMiles * 0.6, (bearingDeg + 180) % 360);
+  // Point E: adds a 5th point at bearing+135 at 0.8x radius to create a rounder loop
+  const E = offsetPoint(startLat, startLng, radiusMiles * 0.8, (bearingDeg + 135) % 360);
+
+  // ORS expects [lng, lat] coordinate order
+  return [
+    [startLng, startLat],  // Start
+    [B[1], B[0]],          // B
+    [C[1], C[0]],          // C
+    [E[1], E[0]],          // E (extra point for longer loop)
+    [D[1], D[0]],          // D
+    [startLng, startLat]   // Back to start
+  ];
+}
+
 // Call OpenRouteService directions API
-async function getRoute(waypoints, profileUrl) {
+async function getRoute(waypoints, profileUrl, options = {}) {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey) {
     throw new Error('ORS_API_KEY not set in .env');
   }
 
-  const response = await axios.post(profileUrl, {
-    coordinates: waypoints
-  }, {
+  const body = { coordinates: waypoints };
+
+  // Add quiet routing preference when requested (foot-walking only)
+  if (options.quiet && profileUrl === ORS_PROFILES.running) {
+    body.profile_params = { weightings: { quiet_factor: 0.8 } };
+  }
+
+  const response = await axios.post(profileUrl, body, {
     headers: {
       'Authorization': apiKey,
       'Content-Type': 'application/json'
@@ -172,7 +199,7 @@ function estimateTime(distanceMiles, paceMinPerMile = 10) {
 
 // POST /api/routes/generate
 router.post('/generate', async (req, res) => {
-  const { lat, lng, exclude_bearings, mode } = req.body;
+  const { lat, lng, exclude_bearings, mode, quiet } = req.body;
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'lat and lng are required' });
@@ -181,8 +208,9 @@ router.post('/generate', async (req, res) => {
   const activeMode = (mode === 'cycling') ? 'cycling' : 'running';
   const config = MODE_CONFIG[activeMode];
   const profileUrl = ORS_PROFILES[activeMode];
+  const routeOptions = { quiet: !!quiet };
 
-  console.log(`Generating ${activeMode} routes from [${lat}, ${lng}]...`);
+  console.log(`Generating ${activeMode} routes from [${lat}, ${lng}]${quiet ? ' (quiet mode)' : ''}...`);
 
   let bearings = [0, 45, 90, 135, 180, 225, 270, 315];
 
@@ -204,14 +232,18 @@ router.post('/generate', async (req, res) => {
     }
   }
 
-  const routes = { short: [], medium: [], long: [] };
-  const errors = [];
+  const routes    = { short: [], medium: [], long: [] };
+  const allRoutes = []; // Every successful route regardless of distance
+  const errors    = [];
 
   // Process candidates with a small delay between API calls to avoid rate limiting
   for (const candidate of candidates) {
     try {
-      const waypoints = generateLoopWaypoints(lat, lng, candidate.bearing, candidate.radius);
-      const route = await getRoute(waypoints, profileUrl);
+      const waypoints = candidate.category === 'long'
+        ? generateLongLoopWaypoints(lat, lng, candidate.bearing, candidate.radius)
+        : generateLoopWaypoints(lat, lng, candidate.bearing, candidate.radius);
+
+      const route = await getRoute(waypoints, profileUrl, routeOptions);
 
       const dist = parseFloat(route.distanceMiles);
       const cfg = config[candidate.category];
@@ -220,17 +252,20 @@ router.post('/generate', async (req, res) => {
 
       console.log(`  ${getBearingLabel(candidate.bearing)} ${candidate.category}: ${dist} mi, overlap: ${overlapMiles} mi`);
 
-      const routeData = {
+      const routeRecord = {
         ...route,
         estimatedMinutes: estTime,
         bearing: candidate.bearing,
         bearingLabel: getBearingLabel(candidate.bearing),
-        overlapMiles
+        overlapMiles,
+        dist  // numeric, used server-side for backfill sorting
       };
 
-      // Categorize by actual distance using mode-specific ranges
+      allRoutes.push(routeRecord);
+
+      // Primary: strict range match
       if (dist >= cfg.distMin && dist <= cfg.distMax) {
-        routes[candidate.category].push(routeData);
+        routes[candidate.category].push(routeRecord);
       }
 
       // Small delay to be nice to ORS free tier
@@ -244,9 +279,31 @@ router.post('/generate', async (req, res) => {
     }
   }
 
-  // Keep best routes per category
+  // Select best routes per category, then backfill to max from the full pool
   for (const [category, cfg] of Object.entries(config)) {
     routes[category] = selectBestRoutes(routes[category], cfg.maxRoutes);
+
+    if (routes[category].length < cfg.maxRoutes) {
+      const usedBearings = new Set(routes[category].map(r => r.bearing));
+      const midpoint     = (cfg.distMin + cfg.distMax) / 2;
+
+      // Pull from allRoutes: prefer unused bearings, routes closest in distance to the target midpoint.
+      // Soft bounds: don't use routes shorter than 60% of distMin or longer than 160% of distMax.
+      const fallbacks = allRoutes
+        .filter(r =>
+          !usedBearings.has(r.bearing) &&
+          r.dist >= cfg.distMin * 0.6 &&
+          r.dist <= cfg.distMax * 1.6
+        )
+        .sort((a, b) => Math.abs(a.dist - midpoint) - Math.abs(b.dist - midpoint));
+
+      const needed = cfg.maxRoutes - routes[category].length;
+      routes[category].push(...fallbacks.slice(0, needed));
+
+      if (needed > 0 && fallbacks.length > 0) {
+        console.log(`  Backfilled ${category}: added ${Math.min(needed, fallbacks.length)} routes from pool`);
+      }
+    }
   }
 
   console.log(`Generated ${routes.short.length} short, ${routes.medium.length} medium, ${routes.long.length} long ${activeMode} routes (${errors.length} errors)`);

@@ -63,6 +63,30 @@
 
 ---
 
+## Session 3 — Token Persistence, Long Routes, Quiet Routing, Heatmap Colors, GPX Export
+
+**Date:** 02.19.2026
+**Time spent:** ~1h 30m
+
+### What We Built
+- **#2 Token persistence:** `getAccessToken()` bootstraps from `STRAVA_ACCESS_TOKEN` / `STRAVA_REFRESH_TOKEN` / `STRAVA_EXPIRES_AT` env vars when `.strava-tokens.json` is missing (survives Render deploys). Logs `export STRAVA_*=...` block after OAuth callback and token refresh so env vars can be kept in sync.
+- **#4 Long routes:** Added `generateLongLoopWaypoints()` (5-point pentagon shape) for long-category routes. Long routes now use this instead of the 4-point diamond, increasing likelihood of hitting the 9–15 mi range. `distMin` loosened from 10 → 9 mi.
+- **#1 Quiet routing:** Added `quiet` param to the generate API. When `quiet=true` and mode is foot-walking, ORS request includes `profile_params: { weightings: { quiet_factor: 0.8 } }`. Frontend has a "Quiet" toggle button next to Generate; state is passed through both `generateRoutes()` and `generateMoreRoutes()`.
+- **#3 Heatmap colors:** Replaced single `heatLayer` with `heatLayers` map (keyed by activity type). Each type gets its own color gradient (Run→orange, Ride→blue, Walk→green, Swim→cyan, others→purple). Filter chips now show a small colored dot matching their layer.
+- **#5 GPX export:** `downloadGPX(index)` builds a valid GPX XML string from route coordinates and triggers a browser download. Download icon button added to every route card.
+
+### What Shipped
+- All 5 open GitHub issues resolved
+- 4 files modified: `routes/strava-auth.js`, `routes/generate.js`, `public/app.js`, `public/index.html`, `public/style.css`
+
+### Decisions Made
+- Long route `distMin` loosened to 9 mi (catches routes just under 10 that are functionally long)
+- `STRAVA_ATHLETE_NAME` env var used to skip Strava API call on `/status` when available
+- GPX is pure client-side (no server changes needed)
+- Quiet routing uses `quiet_factor: 0.8` (not 1.0 — avoids over-constraining routing)
+
+---
+
 ## Backlog / Ideas
 
 *Things we've mentioned but haven't built yet:*

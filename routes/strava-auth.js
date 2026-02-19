@@ -44,6 +44,14 @@ router.get('/callback', async (req, res) => {
     fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokenData, null, 2));
     console.log(`Strava connected for ${tokenData.athlete_name}`);
 
+    // Log env vars so they can be copied to Render dashboard
+    console.log('\n========== STRAVA ENV VARS (copy to Render) ==========');
+    console.log(`export STRAVA_ACCESS_TOKEN=${access_token}`);
+    console.log(`export STRAVA_REFRESH_TOKEN=${refresh_token}`);
+    console.log(`export STRAVA_EXPIRES_AT=${expires_at}`);
+    console.log(`export STRAVA_ATHLETE_NAME=${athlete.firstname} ${athlete.lastname}`);
+    console.log('=======================================================\n');
+
     res.send(`
       <h2>Strava Connected!</h2>
       <p>Welcome, ${athlete.firstname}! Your account is linked.</p>
@@ -58,6 +66,20 @@ router.get('/callback', async (req, res) => {
 // Step 3: Get a valid access token (auto-refresh if expired)
 async function getAccessToken() {
   if (!fs.existsSync(TOKEN_FILE)) {
+    // Fallback: bootstrap from environment variables (for Render deploys)
+    const { STRAVA_ACCESS_TOKEN, STRAVA_REFRESH_TOKEN, STRAVA_EXPIRES_AT } = process.env;
+    if (STRAVA_ACCESS_TOKEN && STRAVA_REFRESH_TOKEN && STRAVA_EXPIRES_AT) {
+      console.log('No token file found — bootstrapping from env vars');
+      const tokenData = {
+        access_token: STRAVA_ACCESS_TOKEN,
+        refresh_token: STRAVA_REFRESH_TOKEN,
+        expires_at: parseInt(STRAVA_EXPIRES_AT, 10),
+        athlete_name: process.env.STRAVA_ATHLETE_NAME || 'Unknown',
+        saved_at: new Date().toISOString()
+      };
+      fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokenData, null, 2));
+      return getAccessToken(); // Recurse — will now find the file and handle expiry
+    }
     return null;
   }
 
@@ -86,6 +108,14 @@ async function getAccessToken() {
 
     fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2));
     console.log('Strava token refreshed');
+
+    // Log updated env vars so Render dashboard can be kept in sync
+    console.log('\n========== UPDATED STRAVA ENV VARS (copy to Render) ==========');
+    console.log(`export STRAVA_ACCESS_TOKEN=${access_token}`);
+    console.log(`export STRAVA_EXPIRES_AT=${expires_at}`);
+    console.log('(STRAVA_REFRESH_TOKEN unchanged)');
+    console.log('===============================================================\n');
+
     return access_token;
   } catch (err) {
     console.error('Token refresh failed:', err.response?.data || err.message);
@@ -98,6 +128,12 @@ router.get('/status', async (req, res) => {
   const token = await getAccessToken();
   if (!token) {
     return res.json({ connected: false });
+  }
+
+  // Use env var name to avoid hitting Strava API on every page load
+  const athleteName = process.env.STRAVA_ATHLETE_NAME;
+  if (athleteName) {
+    return res.json({ connected: true, athlete: athleteName });
   }
 
   try {
