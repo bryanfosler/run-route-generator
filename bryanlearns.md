@@ -1,6 +1,62 @@
 # Bryan Learns: Run Route Generator
 
-*Last updated: 02.16.2026*
+*Last updated: 02.19.2026*
+
+---
+
+## Session 3 Learnings
+
+### The Leaflet Layer Inheritance Trap
+
+Here's a good one. We had `dec.setStyle({ opacity: 0.1 })` in the code and it looked perfectly reasonable. The arrows just... never dimmed when you selected a route. No error, no warning, completely silent. Why?
+
+`L.PolylineDecorator` extends `L.Layer`. Not `L.Path`, not `L.FeatureGroup` — just the base `L.Layer` class, which has no `setStyle` method. Calling it does exactly nothing. You might as well call `dec.madeUpFunction()`.
+
+The fix was to remove and rebuild the decorator with fresh `pathOptions` every time the style needs to change. It's slightly more work but completely reliable. The lesson: **when a visual change silently does nothing in a JS library, check the inheritance chain.** The method might exist on a parent class but be a no-op on this specific class.
+
+This is a general pattern in event-driven JS frameworks — methods that "should work" but don't because the object you're calling them on doesn't actually implement that interface. Always verify which class your object actually is, not just which class you think it resembles.
+
+---
+
+### Why Greedy Filtering Leaves Empty Shelves
+
+The route count problem was a good real-world example of **greedy vs. lazy filtering**.
+
+Original approach: generate 24 ORS route requests, keep only the ones whose actual road distance lands in the target range (4–6 mi for short, 6–9 for medium, etc.). Discard everything else.
+
+The problem: ORS sometimes routes a 1.2-mile-radius loop as 7 miles, not 5, because it has to navigate around dead-ends, parks, or one-way streets. A perfectly good route gets thrown away just because the road network didn't cooperate with our geometry. Result: you asked for 4 short routes and got 2.
+
+Fix: keep ALL successful routes in a flat pool. After the strict-match filter runs, if a category is under its quota, pull from the pool sorted by "which route's distance is closest to this category's midpoint?" With soft bounds (60%–160% of the range) to prevent absurd results, you almost always fill the shelf.
+
+The mental model: instead of a strict job interview ("you must have exactly 5 years experience"), it's a ranked preference ("we want 5 years, here's everyone sorted by fit, hire the top N"). Same data, much better outcomes when the inputs are noisy.
+
+---
+
+### The Click Disambiguation Problem
+
+Leaflet fires a `click` event for EVERY click, including both clicks in a double-click sequence. So if you have `map.on('click', placePin)`, a double-click to zoom also places a pin (twice, at the same location). It looks harmless but it wipes your routes.
+
+The standard fix is a **debounce with click counting**: wait 250ms after each click to see if more clicks are coming. If count=1 after the wait, it's a single click. Count=2 = double-click. Count≥3 = triple-click. This is the same pattern your phone uses to distinguish tap from double-tap.
+
+The drag-zoom gesture adds another layer: you need to know if the second mousedown is the start of a drag or just a quick double-click. The solution is "optimistic commitment with a threshold" — when a second press happens within 300ms, immediately disable Leaflet's pan handler (so it can't start a pan), but wait until 4px of vertical movement before actually entering drag-zoom mode. If the user releases without moving, re-enable pan and let the double-click process normally.
+
+This is a general pattern for **gesture recognition**: collect intent early (disable conflicting handlers), but don't commit to an interpretation until you have enough signal. The 4px threshold is the "enough signal" point.
+
+---
+
+### Env Vars as a Poor Man's Database
+
+The Strava token problem on Render is a classic ephemeral-filesystem issue. Render's free tier gives you a server that restarts on every deploy (and occasionally at random). Any file you write — including your auth tokens — vanishes. Every restart = forced re-auth.
+
+The solution here is to use environment variables as a "read-once persistent store." The flow:
+1. Do OAuth once locally, see the token in server logs
+2. Copy those 4 env vars to Render's dashboard
+3. On every cold start, if the token file doesn't exist, read from env vars and recreate it
+4. After a token refresh, log the new values so you can update Render
+
+It's manual, but it's free and works well for a single-user app. The tradeoff vs. a real database: you have to manually copy updated tokens to Render every ~6 hours (when tokens expire) unless you automate it. For low-traffic personal tools, this friction is acceptable.
+
+The general principle: **environment variables are the simplest possible persistent config store for deployed apps.** They survive restarts, they're secret, and they're supported everywhere. Reach for them before spinning up a database for simple key-value data.
 
 ---
 

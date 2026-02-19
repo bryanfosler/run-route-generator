@@ -66,7 +66,7 @@
 ## Session 3 — Token Persistence, Long Routes, Quiet Routing, Heatmap Colors, GPX Export
 
 **Date:** 02.19.2026
-**Time spent:** ~1h 30m
+**Time spent:** ~2h 30m
 
 ### What We Built
 - **#2 Token persistence:** `getAccessToken()` bootstraps from `STRAVA_ACCESS_TOKEN` / `STRAVA_REFRESH_TOKEN` / `STRAVA_EXPIRES_AT` env vars when `.strava-tokens.json` is missing (survives Render deploys). Logs `export STRAVA_*=...` block after OAuth callback and token refresh so env vars can be kept in sync.
@@ -74,16 +74,28 @@
 - **#1 Quiet routing:** Added `quiet` param to the generate API. When `quiet=true` and mode is foot-walking, ORS request includes `profile_params: { weightings: { quiet_factor: 0.8 } }`. Frontend has a "Quiet" toggle button next to Generate; state is passed through both `generateRoutes()` and `generateMoreRoutes()`.
 - **#3 Heatmap colors:** Replaced single `heatLayer` with `heatLayers` map (keyed by activity type). Each type gets its own color gradient (Run→orange, Ride→blue, Walk→green, Swim→cyan, others→purple). Filter chips now show a small colored dot matching their layer.
 - **#5 GPX export:** `downloadGPX(index)` builds a valid GPX XML string from route coordinates and triggers a browser download. Download icon button added to every route card.
+- **Detect my location:** Geolocation API button in search row. Handles all 3 browser error codes with specific messages. 60s cached position so a second tap is instant.
+- **Zoom gestures:** Custom click/drag zoom replacing Leaflet defaults. Single click (250ms debounce) → pin; double click → zoom in centered on cursor; triple click → zoom out; double-click-hold + drag up/down → smooth drag zoom (Google Maps style). Cursor changes to ↕ during drag.
+- **Chevron highlighting fix:** `L.PolylineDecorator` extends `L.Layer` — `setStyle()` is a silent no-op. Fixed by removing and rebuilding each decorator on highlight change. Selected route gets larger arrows (13px) at full opacity; unselected fades to near-invisible (0.05).
+- **Guaranteed route counts:** Replaced narrow nearMiss pool with flat `allRoutes` pool capturing every successful ORS response. Backfill selects by distance-to-target-midpoint so categories always fill to 4/3/2.
 
 ### What Shipped
-- All 5 open GitHub issues resolved
-- 4 files modified: `routes/strava-auth.js`, `routes/generate.js`, `public/app.js`, `public/index.html`, `public/style.css`
+- All 5 backlog issues + 4 follow-up improvements shipped in one session
+- 5 files modified: `routes/strava-auth.js`, `routes/generate.js`, `public/app.js`, `public/index.html`, `public/style.css`
+- Pushed to `bryanfosler/run-route-generator` main
+
+### Bugs Fixed
+- Chevrons not responding to route highlight (L.PolylineDecorator has no setStyle — rebuild on each change)
+- Routes sometimes showing fewer than 4/3/2 per category (flat pool backfill now guarantees count)
+- Double-clicking map to zoom was also placing a new pin and clearing routes (fixed with 250ms debounce)
 
 ### Decisions Made
 - Long route `distMin` loosened to 9 mi (catches routes just under 10 that are functionally long)
 - `STRAVA_ATHLETE_NAME` env var used to skip Strava API call on `/status` when available
 - GPX is pure client-side (no server changes needed)
 - Quiet routing uses `quiet_factor: 0.8` (not 1.0 — avoids over-constraining routing)
+- Drag zoom uses threshold of 4px vertical movement to distinguish from a normal click hold
+- Route backfill soft bounds: 60% of distMin → 160% of distMax (prevents absurd cross-range fills)
 
 ---
 
