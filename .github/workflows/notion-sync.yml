@@ -66,11 +66,17 @@ jobs:
               per_page: 100
             });
             let totalMinutes = 0;
+            let totalTokens = 0;
+            let totalCost = 0.0;
             for (const comment of commentsRes.data) {
-              const match = comment.body.match(/Time:\s*([\dhmHM\s]+)/);
-              if (match) {
-                totalMinutes += parseMinutes(match[1]);
-              }
+              const timeMatch = comment.body.match(/Time:\s*([\dhmHM\s]+)/);
+              if (timeMatch) totalMinutes += parseMinutes(timeMatch[1]);
+
+              const tokensMatch = comment.body.match(/Tokens:\s*(\d+)/);
+              if (tokensMatch) totalTokens += parseInt(tokensMatch[1]);
+
+              const costMatch = comment.body.match(/Cost:\s*([\d.]+)/);
+              if (costMatch) totalCost += parseFloat(costMatch[1]);
             }
 
             // Search for existing page with this issue URL
@@ -113,6 +119,12 @@ jobs:
               'Time Spent (min)': {
                 number: totalMinutes
               },
+              'Tokens': {
+                number: totalTokens > 0 ? totalTokens : null
+              },
+              'API Equiv ($)': {
+                number: totalCost > 0 ? Math.round(totalCost * 100) / 100 : null
+              },
               'Week': {
                 select: { name: getISOWeek(issue.created_at) }
               },
@@ -133,7 +145,7 @@ jobs:
               });
               const updateData = await updateRes.json();
               if (updateData.id) {
-                console.log(`Updated Notion page for issue #${issue.number} (${totalMinutes} min)`);
+                console.log(`Updated Notion page for issue #${issue.number} (${totalMinutes} min, ${totalTokens} tokens, $${totalCost.toFixed(2)})`);
               } else {
                 console.log('Update response:', JSON.stringify(updateData));
               }
@@ -152,7 +164,7 @@ jobs:
               });
               const createData = await createRes.json();
               if (createData.id) {
-                console.log(`Created Notion page for issue #${issue.number} (${totalMinutes} min)`);
+                console.log(`Created Notion page for issue #${issue.number} (${totalMinutes} min, ${totalTokens} tokens, $${totalCost.toFixed(2)})`);
               } else {
                 console.log('Create response:', JSON.stringify(createData));
               }
