@@ -42,6 +42,22 @@ jobs:
               return total;
             }
 
+            // ISO week string e.g. "2026-W09"
+            function getISOWeek(dateStr) {
+              const d = new Date(dateStr);
+              const day = d.getUTCDay() || 7;
+              d.setUTCDate(d.getUTCDate() + 4 - day);
+              const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+              const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+              return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+            }
+
+            // Month string e.g. "2026-03"
+            function getMonth(dateStr) {
+              const d = new Date(dateStr);
+              return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+            }
+
             // Fetch all comments and sum up time entries (format: "Time: Xh Ym")
             const commentsRes = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -96,6 +112,12 @@ jobs:
               },
               'Time Spent (min)': {
                 number: totalMinutes
+              },
+              'Week': {
+                select: { name: getISOWeek(issue.created_at) }
+              },
+              'Month': {
+                select: { name: getMonth(issue.created_at) }
               }
             };
 
