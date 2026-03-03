@@ -28,8 +28,8 @@ jobs:
             const dbId = '30a95da6-c9dc-805a-8dcc-cf1dc2694ea2';
 
             // Map GitHub issue state to Notion status
-            const statusMap = { open: 'Open', closed: 'Done' };
-            const status = statusMap[issue.state] || 'Open';
+            const statusMap = { open: 'Backlog', closed: 'Done' };
+            const status = statusMap[issue.state] || 'Backlog';
             const labels = issue.labels.map(l => l.name);
 
             // Parse time from a string like "1h30m", "45m", "2h", "90m"
@@ -115,6 +115,9 @@ jobs:
               },
               'Project': {
                 select: { name: 'Route Generator' }
+              },
+              'Source': {
+                select: { name: 'Claude Code' }
               },
               'Time Spent (min)': {
                 number: totalMinutes
